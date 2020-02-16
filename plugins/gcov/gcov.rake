@@ -513,9 +513,7 @@ namespace UTILS_SYM do
     # Build the source directories argument.
     args += "\"-sourcedirs:.;"
     if !(opts[:collection_paths_source].nil?)
-      for src_path in opts[:collection_paths_source]
-        args += src_path + ";"
-      end
+      args += opts[:collection_paths_source].join(';')
     end
     args = args.chomp(";")
     args += "\" "
