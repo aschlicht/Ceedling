@@ -524,9 +524,8 @@ namespace UTILS_SYM do
     args += "\"-plugins:#{rg_opts[:plugins]}\" " unless rg_opts[:plugins].nil?
     args += "\"-assemblyfilters:#{rg_opts[:assembly_filters]}\" " unless rg_opts[:assembly_filters].nil?
     args += "\"-classfilters:#{rg_opts[:class_filters]}\" " unless rg_opts[:class_filters].nil?
-    filefilters_default = "-" + GCOV_FILTER_EXCLUDE.gsub("^", "./").gsub(".*", "*").gsub("|", ";-")
-    filefilters_default += ";-" + GCOV_FILTER_EXCLUDE.gsub("^", ".\\").gsub(".*", "*").gsub("|", ";-")
-    args += "\"-filefilters:#{rg_opts[:file_filters] || filefilters_default}\" "
+    file_filters = rg_opts[:file_filters] || @ceedling[:tool_executor_helper].osify_path_separators(GCOV_REPORT_GENERATOR_FILE_FILTERS)
+    args += "\"-filefilters:#{file_filters}\" "
     args += "\"-verbosity:#{rg_opts[:verbosity] || "Warning"}\" "
     args += "\"-tag:#{rg_opts[:tag]}\" " unless rg_opts[:tag].nil?
 

@@ -15,4 +15,10 @@ GCOV_ARTIFACTS_FILE_COBERTURA   = File.join(GCOV_ARTIFACTS_PATH, "GcovCoverageCo
 GCOV_ARTIFACTS_FILE_SONARQUBE   = File.join(GCOV_ARTIFACTS_PATH, "GcovCoverageSonarQube.xml")
 GCOV_ARTIFACTS_FILE_JSON        = File.join(GCOV_ARTIFACTS_PATH, "GcovCoverage.json")
 
-GCOV_FILTER_EXCLUDE             = '^vendor.*|^build.*|^test.*|^lib.*'
+GCOV_FILTER_EXCLUDE_PATHS       = ['vendor', 'build', 'test', 'lib']
+
+# gcovr supports regular expressions.
+GCOV_FILTER_EXCLUDE             = GCOV_FILTER_EXCLUDE_PATHS.map{|path| '^'.concat(*path).concat('.*')}.join('|')
+
+# ReportGenerator supports text with wildcard characters.
+GCOV_REPORT_GENERATOR_FILE_FILTERS = GCOV_FILTER_EXCLUDE_PATHS.map{|path| File.join('-.', *path, '*')}.join(';')
