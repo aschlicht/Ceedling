@@ -562,10 +562,12 @@ namespace UTILS_SYM do
         File.delete(gcov_file)
       end
 
+      # Avoid running gcov on the mock, test, unity, and cexception gcov notes files to save time.
+      gcno_exclude_regex = /(\/|\\)(#{opts[:cmock_mock_prefix]}.*|#{opts[:project_test_file_prefix]}.*|#{VENDORS_FILES.join('|')})\.gcno/
+
       # Generate .gcov files by running gcov on gcov notes files (*.gcno).
       for gcno_filepath in Dir.glob(File.join(GCOV_BUILD_PATH, "**", "*.gcno"))
-        # Avoid running gcov on the mock, test, and unity gcov notes files to save time.
-        match_data = gcno_filepath.match(/(\/|\\)(mock_.*|test_.*|unity|cmock)\.gcno/)
+        match_data = gcno_filepath.match(gcno_exclude_regex)
         if match_data.nil? || (match_data[1].nil? && match_data[1].nil?)
           run_gcov("-b -c -r -x \"#{gcno_filepath}\"")
         end
