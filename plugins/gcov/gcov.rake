@@ -1,4 +1,5 @@
 require 'benchmark'
+require 'reportgenerator_reportinator'
 
 directory(GCOV_BUILD_OUTPUT_PATH)
 directory(GCOV_RESULTS_PATH)
@@ -163,7 +164,6 @@ namespace UTILS_SYM do
   UTILITY_NAMES = [UTILITY_NAME_GCOVR, UTILITY_NAME_REPORT_GENERATOR]
 
   GCOVR_SETTING_PREFIX = "gcov_gcovr"
-  REPORT_GENERATOR_SETTING_PREFIX = "gcov_report_generator"
 
   # A dictionary of report types defined in this plugin to ReportGenerator report types.
   REPORT_TYPE_TO_REPORT_GENERATOR_REPORT_NAME = {
@@ -187,7 +187,6 @@ namespace UTILS_SYM do
     ReportTypes::XML.upcase => "Xml",
     ReportTypes::XML_SUMMARY.upcase => "XmlSummary",
   }
-
 
   # Get the gcovr options from the project options.
   def get_gcovr_opts(opts)
@@ -462,115 +461,6 @@ namespace UTILS_SYM do
   end
 
 
-  # Build the ReportGenerator arguments.
-  def report_generator_args_builder(opts)
-    rg_opts = get_report_generator_opts(opts)
-
-    args = ""
-    args += "\"-reports:*.gcov\" "
-    args += "\"-targetdir:\"#{GCOV_REPORT_GENERATOR_PATH}\"\" "
-
-    # Build the report types argument.
-    if !(opts.nil?) && !(opts[:gcov_reports].nil?) && !(opts[:gcov_reports].empty?)
-      args += "\"-reporttypes:"
-
-      for report_type in opts[:gcov_reports]
-        rg_report_type = REPORT_TYPE_TO_REPORT_GENERATOR_REPORT_NAME[report_type.upcase]
-        if !(rg_report_type.nil?)
-          args += rg_report_type + ";"
-        end
-      end
-
-      # Removing trailing ';' after the last report type.
-      args = args.chomp(";")
-
-      # Append a space seperator after the report type.
-      args += "\" "
-    end
-
-    # Build the source directories argument.
-    args += "\"-sourcedirs:.;"
-    if !(opts[:collection_paths_source].nil?)
-      args += opts[:collection_paths_source].join(';')
-    end
-    args = args.chomp(";")
-    args += "\" "
-
-    args += "\"-historydir:#{rg_opts[:history_directory]}\" " unless rg_opts[:history_directory].nil?
-    args += "\"-plugins:#{rg_opts[:plugins]}\" " unless rg_opts[:plugins].nil?
-    args += "\"-assemblyfilters:#{rg_opts[:assembly_filters]}\" " unless rg_opts[:assembly_filters].nil?
-    args += "\"-classfilters:#{rg_opts[:class_filters]}\" " unless rg_opts[:class_filters].nil?
-    file_filters = rg_opts[:file_filters] || @ceedling[:tool_executor_helper].osify_path_separators(GCOV_REPORT_GENERATOR_FILE_FILTERS)
-    args += "\"-filefilters:#{file_filters}\" "
-    args += "\"-verbosity:#{rg_opts[:verbosity] || "Warning"}\" "
-    args += "\"-tag:#{rg_opts[:tag]}\" " unless rg_opts[:tag].nil?
-
-    return args
-  end
-
-
-  # Run gcov with the given arguments.
-  def run_gcov(args)
-    command = @ceedling[:tool_executor].build_command_line(TOOLS_GCOV_GCOV_POST_REPORT, [], args)
-    return @ceedling[:tool_executor].exec(command[:line], command[:options])
-  end
-
-
-  # Run ReportGenerator with the given arguments.
-  def run_report_generator(args)
-    command = @ceedling[:tool_executor].build_command_line(TOOLS_GCOV_REPORT_GENERATOR_POST_REPORT, [], args)
-    return @ceedling[:tool_executor].exec(command[:line], command[:options])
-  end
-
-
-  # Generate the ReportGenerator report(s) specified in the options.
-  def make_report_generator_reports(opts)
-    shell_result = nil
-    total_time = Benchmark.realtime do
-      rg_opts = get_report_generator_opts(opts)
-
-      print "Creating gcov results report(s) with ReportGenerator in '#{GCOV_REPORT_GENERATOR_PATH}'... "
-      STDOUT.flush
-
-      # Cleanup any existing .gcov files to avoid reporting old coverage results.
-      for gcov_file in Dir.glob("*.gcov")
-        File.delete(gcov_file)
-      end
-
-      # Avoid running gcov on the mock, test, unity, and cexception gcov notes files to save time.
-      gcno_exclude_regex = /(\/|\\)(#{opts[:cmock_mock_prefix]}.*|#{opts[:project_test_file_prefix]}.*|#{VENDORS_FILES.join('|')})\.gcno/
-
-      # Generate .gcov files by running gcov on gcov notes files (*.gcno).
-      for gcno_filepath in Dir.glob(File.join(GCOV_BUILD_PATH, "**", "*.gcno"))
-        match_data = gcno_filepath.match(gcno_exclude_regex)
-        if match_data.nil? || (match_data[1].nil? && match_data[1].nil?)
-          run_gcov("-b -c -r -x \"#{gcno_filepath}\"")
-        end
-      end
-
-      if Dir.glob("*.gcov").length > 0
-        # Build the command line arguments.
-        args = report_generator_args_builder(opts)
-
-        # Generate the report(s).
-        shell_result = run_report_generator(args)
-      else
-        puts "\nWarning: No matching .gcno coverage files found."
-      end
-
-      # Cleanup .gcov files.
-      for gcov_file in Dir.glob("*.gcov")
-        File.delete(gcov_file)
-      end
-    end
-
-    if shell_result
-      shell_result[:time] = total_time
-      print_shell_result(shell_result)
-    end
-  end
-
-
   desc "Create gcov code coverage html/xml/json/text report(s). (Note: Must run 'ceedling gcov' first)."
   task GCOV_SYM do
     # Get the gcov options from project.yml.
@@ -634,7 +524,15 @@ namespace UTILS_SYM do
     end
 
     if is_utility_enabled(opts, UTILITY_NAME_REPORT_GENERATOR)
-      make_report_generator_reports(opts)
+      shell_result = nil
+      total_time = Benchmark.realtime do
+        reportgenerator_reportinator = ReportGeneratorReportinator.new(@ceedling)
+        shell_result = reportgenerator_reportinator.make_reports(opts)
+      end
+      if shell_result
+        shell_result[:time] = total_time
+        print_shell_result(shell_result)
+      end
     end
 
   end
